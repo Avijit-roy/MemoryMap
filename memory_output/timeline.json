@@ -1,0 +1,13 @@
+{
+  "total_memories": 1,
+  "memories": [
+    {
+      "index": 0,
+      "timestamp": "00:00",
+      "seconds": 0.0,
+      "importance": "0.29",
+      "explanation": "This 152.0s moment is important because of: high emotional intensity.",
+      "image": "memory_00.jpg"
+    }
+  ]
+}

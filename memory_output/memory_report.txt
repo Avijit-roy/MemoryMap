@@ -1,0 +1,10 @@
+======================================================================
+MEMORYMAP - VIDEO MEMORY EXTRACTION REPORT
+======================================================================
+
+MEMORY #1
+  Timestamp: 00:00
+  Importance Score: 28.74%
+  Explanation: This 152.0s moment is important because of: high emotional intensity.
+  Image: memory_00.jpg
+
