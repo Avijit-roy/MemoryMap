@@ -21,7 +21,8 @@ class FrameSampling:
     def sample(self) -> List[Frame]:
         """Extract frames at regular intervals"""
         metadata = self.video.get_metadata()
-        frame_interval = int(self.sample_interval * metadata["fps"])
+        fps = metadata["fps"]
+        frame_interval = int(self.sample_interval * fps)
         
         frame_index = 0
         sampled_count = 0
@@ -31,8 +32,9 @@ class FrameSampling:
             if not ret:
                 break
             
+            # Sample based on frame index
             if frame_index % frame_interval == 0:
-                timestamp = frame_index / metadata["fps"]
+                timestamp = frame_index / fps  # approximate timestamp
                 self.sampled_frames.append(Frame(
                     image=frame,
                     timestamp=timestamp,
