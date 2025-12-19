@@ -25,4 +25,4 @@ class SemanticAnalyzer:
         elif motion_score < 0.2:
             return "repetitive_content"
         else:
-            return "decision_moment"
+            return "decision_moment"  
