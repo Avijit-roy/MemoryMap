@@ -4,7 +4,7 @@ import cv2
 import json
 from pathlib import Path
 from typing import List, Tuple
-from data_structures import Scene, Memory
+from data_structures import Scene, Memory, Frame
 
 
 class MemoryTimeline:
@@ -16,7 +16,7 @@ class MemoryTimeline:
         self.memories: List[Memory] = []
     
     def add_memory(self, scene: Scene, importance_score: float, 
-                  explanation: str, image_filename: str):
+                   explanation: str, image_filename: str):
         """Add memory to timeline"""
         memory = Memory(
             scene_id=scene.scene_id,
@@ -31,9 +31,19 @@ class MemoryTimeline:
         """Save timeline as JSON and text"""
         # Save images
         for idx, (scene, score, explanation) in enumerate(memories):
-            img_path = self.output_dir / f"memory_{idx:02d}.jpg"
-            cv2.imwrite(str(img_path), scene.representative_frame)
-        
+            img = None
+
+            # Extract raw image from representative_frame
+            if scene.representative_frame is not None:
+                if isinstance(scene.representative_frame, Frame):
+                    img = scene.representative_frame.image
+                else:
+                    img = scene.representative_frame  # fallback if already ndarray
+
+            if img is not None:
+                img_path = self.output_dir / f"memory_{idx:02d}.jpg"
+                cv2.imwrite(str(img_path), img)
+
         # Save JSON timeline
         timeline_data = {
             "total_memories": len(memories),

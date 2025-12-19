@@ -1,9 +1,7 @@
-"""
-Object and context analysis using YOLO (patched for memory safety)
-"""
+"""Object and context analysis using YOLO (patched for memory safety)"""
 
 from typing import Dict, List
-import numpy as np
+from modules.utils import resize_for_yolo
 
 try:
     from ultralytics import YOLO
@@ -15,7 +13,8 @@ from data_structures import Scene
 
 class ObjectContextAnalyzer:
     """
-    Analyzes object presence and context change in a scene
+    Analyzes object presence and context change in a scene.
+
     PATCH:
     - Runs YOLO only ONCE per scene (representative frame)
     - Prevents RAM/GPU crash
@@ -34,7 +33,13 @@ class ObjectContextAnalyzer:
 
     def analyze_scene(self, scene: Scene) -> Dict:
         """
-        Analyze a scene using ONLY the representative frame
+        Analyze a scene using ONLY the representative frame.
+
+        Args:
+            scene: Scene object with representative_frame set
+
+        Returns:
+            Dictionary with detected objects, object count, and context change score
         """
 
         # Safety fallback
@@ -42,15 +47,16 @@ class ObjectContextAnalyzer:
             return {
                 "objects": [],
                 "object_count": 0,
-                "context_change": 0.0
+                "context_change": 0.0,
             }
 
         frame = scene.representative_frame.image
+        resized = resize_for_yolo(frame)  # ✅ fixed order
 
         # Run YOLO ONCE
         try:
             results = self.model(
-                frame,
+                resized,
                 conf=self.conf,
                 verbose=False
             )[0]
@@ -59,7 +65,7 @@ class ObjectContextAnalyzer:
             return {
                 "objects": [],
                 "object_count": 0,
-                "context_change": 0.0
+                "context_change": 0.0,
             }
 
         objects: List[str] = []
@@ -76,5 +82,5 @@ class ObjectContextAnalyzer:
         return {
             "objects": list(unique_objects),
             "object_count": len(objects),
-            "context_change": context_change
+            "context_change": context_change,
         }

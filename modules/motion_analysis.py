@@ -1,15 +1,14 @@
-"""
-Motion analysis module (PATCHED for performance & stability)
-"""
+"""Motion analysis module (PATCHED for performance & stability)"""
 
 import cv2
 import numpy as np
-from data_structures import Scene
+from typing import List
+from data_structures import Scene, Frame
 
 
 class MotionAnalysis:
     """
-    Estimates motion intensity in a scene
+    Estimates motion intensity in a scene.
 
     PATCH:
     - Uses at most MAX_FRAMES frames
@@ -21,17 +20,26 @@ class MotionAnalysis:
 
     @staticmethod
     def calculate_motion_score(scene: Scene) -> float:
-        frames = scene.frames
+        """
+        Calculate motion intensity score for a scene.
 
-        if frames is None or len(frames) < 2:
+        Args:
+            scene: Scene object containing frames
+
+        Returns:
+            Float motion score between 0.0 and 1.0
+        """
+        frames: List[Frame] = scene.frames
+
+        if not frames or len(frames) < 2:
             return 0.0
 
-        # Limit number of frames used
+        # Limit number of frames for performance
         if len(frames) > MotionAnalysis.MAX_FRAMES:
             step = len(frames) // MotionAnalysis.MAX_FRAMES
             frames = frames[::step][:MotionAnalysis.MAX_FRAMES]
 
-        motion_values = []
+        motion_values: List[float] = []
 
         for i in range(len(frames) - 1):
             f1 = frames[i].image
@@ -46,13 +54,11 @@ class MotionAnalysis:
 
             # Absolute difference
             diff = cv2.absdiff(g1, g2)
-            motion = np.mean(diff)
-
-            motion_values.append(motion)
+            motion_values.append(float(np.mean(diff)))
 
         if not motion_values:
             return 0.0
 
-        # Normalize motion score
-        motion_score = float(np.mean(motion_values) / 255.0)
+        # Normalize to 0-1
+        motion_score = np.mean(motion_values) / 255.0
         return min(motion_score, 1.0)

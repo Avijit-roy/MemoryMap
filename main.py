@@ -3,9 +3,6 @@
 import sys
 from pipeline import MemoryMapPipeline
 
-import torch
-torch.cuda.is_available = lambda: False
-
 def main():
     """Main entry point"""
     if len(sys.argv) < 2:
@@ -16,11 +13,12 @@ def main():
     video_path = sys.argv[1]
     output_dir = sys.argv[2] if len(sys.argv) > 2 else "memory_output"
     
+    # Initialize and run pipeline
     pipeline = MemoryMapPipeline(video_path, output_dir)
     pipeline.run(
-        sample_interval=4.0,      # Sample every 2 seconds
-        keep_ratio=0.2,            # Keep 30% of scenes as memories
-        scene_threshold=25.0       # Scene change detection sensitivity
+        sample_interval=4.0,  # Sample every 4 seconds
+        keep_ratio=0.2,       # Keep top 20% of scenes as memories
+        scene_threshold=25.0  # Scene change detection sensitivity
     )
 
 

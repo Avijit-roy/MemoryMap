@@ -1,6 +1,4 @@
-"""
-Deep-learning-based scene segmentation using PySceneDetect (PATCHED)
-"""
+"""Deep-learning-based scene segmentation using PySceneDetect (PATCHED)"""
 
 from typing import List
 from scenedetect import VideoManager, SceneManager
@@ -27,12 +25,18 @@ class SceneSegmentationDL:
     def detect_scenes(self, frames: List[Frame]) -> List[Scene]:
         """
         Detect scenes and map sampled frames into Scene objects
+
+        Args:
+            frames: List of sampled Frame objects with timestamps
+
+        Returns:
+            List of Scene objects
         """
 
         if not frames:
             return []
 
-        # 1️⃣ Run PySceneDetect ONLY for timestamps
+        # 1️⃣ Initialize VideoManager and SceneManager
         video_manager = VideoManager([self.video_path])
         scene_manager = SceneManager()
         scene_manager.add_detector(ContentDetector(threshold=self.threshold))
@@ -44,8 +48,8 @@ class SceneSegmentationDL:
         finally:
             video_manager.release()
 
+        # 2️⃣ Fallback if no scenes detected
         if not scene_list:
-            # Fallback: single scene
             return [
                 Scene(
                     frames=frames,
@@ -54,27 +58,23 @@ class SceneSegmentationDL:
                 )
             ]
 
-        # 2️⃣ Map sampled frames → detected scenes
+        # 3️⃣ Map sampled frames to detected scenes
         scenes: List[Scene] = []
 
         for start, end in scene_list:
             start_time = start.get_seconds()
             end_time = end.get_seconds()
 
-            scene_frames = [
-                f for f in frames
-                if start_time <= f.timestamp <= end_time
-            ]
+            # Select only sampled frames that fall into the scene interval
+            scene_frames = [f for f in frames if start_time <= f.timestamp <= end_time]
 
-            if not scene_frames:
-                continue
-
-            scenes.append(
-                Scene(
-                    frames=scene_frames,
-                    start_time=start_time,
-                    end_time=end_time
+            if scene_frames:
+                scenes.append(
+                    Scene(
+                        frames=scene_frames,
+                        start_time=start_time,
+                        end_time=end_time
+                    )
                 )
-            )
 
         return scenes

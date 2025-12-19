@@ -1,5 +1,4 @@
-"""
-MemoryMap analysis modules
+"""MemoryMap analysis modules
 
 Individual analysis components for video processing:
 - Video ingestion and frame sampling
@@ -11,7 +10,7 @@ Individual analysis components for video processing:
 
 from .video_ingestion import VideoIngestion
 from .frame_sampling import FrameSampling
-from .scene_segmentation import SceneSegmentation
+from .scene_segmentation import SceneSegmentation  # or SceneSegmentationDL if using DL
 from .representative_frames import RepresentativeFrameSelection
 from .object_context import ObjectContextAnalyzer
 from .motion_analysis import MotionAnalysis
