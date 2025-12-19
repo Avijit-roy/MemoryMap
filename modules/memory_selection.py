@@ -1,43 +1,44 @@
-"""Memory selection logic"""
+"""
+Memory selection logic (patched)
+"""
 
-from typing import List, Tuple, Union
-from data_structures import Scene
+from typing import List, Tuple
 
 
 class MemorySelection:
-    """Selects top-K scenes as memories"""
+    """
+    Selects top-K scenes as memories
+
+    PATCH:
+    - Works with (scene_index, importance_score)
+    - Does NOT assume Scene object inside this module
+    - Sorting by time is handled in pipeline using scene_lookup
+    """
 
     @staticmethod
     def select_memories(
-        scored_scenes: List[Tuple[Union[Scene, int], float]],
+        scored_scenes: List[Tuple[int, float]],
         keep_ratio: float = 0.3
-    ) -> List[Tuple[Union[Scene, int], float]]:
+    ) -> List[Tuple[int, float]]:
         """
-        Select top memories based on importance score.
-
-        scored_scenes: List of (Scene, score)
-        keep_ratio: fraction of scenes to keep as memories
+        Args:
+            scored_scenes: List of (scene_index, importance_score)
+            keep_ratio: fraction of scenes to keep
         """
 
         if not scored_scenes:
             return []
 
         # 1️⃣ Sort by importance score (descending)
-        sorted_scenes = sorted(scored_scenes, key=lambda x: x[1], reverse=True)
+        sorted_scenes = sorted(
+            scored_scenes,
+            key=lambda x: x[1],
+            reverse=True
+        )
 
-        # 2️⃣ Keep top K
+        # 2️⃣ Select top-K
         k = max(1, int(len(sorted_scenes) * keep_ratio))
         selected = sorted_scenes[:k]
 
-        # 3️⃣ Sort by timeline if Scene object exists
-        def timeline_key(item):
-            scene_or_idx = item[0]
-            if isinstance(scene_or_idx, Scene):
-                return scene_or_idx.start_time
-            # fallback: preserve relative order
-            return 0
-
-        selected = sorted(selected, key=timeline_key)
-
-        print(f"✓ Selected {len(selected)} memories from {len(sorted_scenes)} scenes")
+        print(f"✓ Selected {len(selected)} memories from {len(scored_scenes)} scenes")
         return selected

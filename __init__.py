@@ -16,7 +16,7 @@ from data_structures import Frame, Scene, Memory
 # Import all modules for convenience
 from modules.video_ingestion import VideoIngestion
 from modules.frame_sampling import FrameSampling
-from modules.scene_segmentation import SceneSegmentation
+from modules.scene_segmentation_dl import SceneSegmentationDL
 from modules.representative_frames import RepresentativeFrameSelection
 from modules.object_context import ObjectContextAnalyzer
 from modules.motion_analysis import MotionAnalysis

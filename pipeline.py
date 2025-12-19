@@ -1,4 +1,6 @@
-"""Main MemoryMap pipeline orchestration"""
+"""
+Main MemoryMap pipeline orchestration (patched & stable)
+"""
 
 from modules.video_ingestion import VideoIngestion
 from modules.frame_sampling import FrameSampling
@@ -32,7 +34,7 @@ class MemoryMapPipeline:
         print("🧠 MEMORYMAP - VIDEO MEMORY EXTRACTION")
         print("=" * 70 + "\n")
 
-        # 1️⃣ Video Ingestion
+        # 1️⃣ Video ingestion
         print("1️⃣ Loading video...")
         video = VideoIngestion(self.video_path)
         metadata = video.get_metadata()
@@ -41,36 +43,51 @@ class MemoryMapPipeline:
         print(f"  Resolution: {metadata['resolution']}")
         print(f"  FPS: {metadata['fps']}")
 
-        # 2️⃣ Frame Sampling
+        # 2️⃣ Frame sampling
         print("\n2️⃣ Sampling frames...")
         sampler = FrameSampling(video, sample_interval=sample_interval)
         frames = sampler.sample()
 
-        # 3️⃣ Scene Segmentation
+        # 3️⃣ Scene segmentation (DL)
         print("\n3️⃣ Detecting scenes...")
-        detector = SceneSegmentationDL(self.video_path, threshold=scene_threshold)
+        detector = SceneSegmentationDL(
+            self.video_path,
+            threshold=scene_threshold
+        )
         scenes = detector.detect_scenes(frames)
 
-        # 4️⃣ Representative Frame Selection
+        if not scenes:
+            print("⚠️ No scenes detected. Exiting.")
+            video.close()
+            return []
+
+        # 4️⃣ Representative frames
         print("\n4️⃣ Selecting representative frames...")
         scenes = RepresentativeFrameSelection.process_all_scenes(scenes)
 
-        # 5️⃣ Scene Analysis
+        # 5️⃣ Scene analysis
         print("\n📊 Analyzing scenes...")
         scored_scenes = []
-        scene_data = {}
+        scene_lookup = {}
 
-        for scene in scenes:
+        for idx, scene in enumerate(scenes):
+            # Object & context
             context_data = self.object_analyzer.analyze_scene(scene)
+
+            # Motion
             motion_score = MotionAnalysis.calculate_motion_score(scene)
+
+            # Emotion
             emotion_score = EmotionAnalysis.estimate_emotion_score(scene)
 
+            # Semantic classification
             semantic_label = SemanticAnalyzer.classify_scene(
                 scene,
                 motion_score,
                 context_data.get("context_change", 0.0)
             )
 
+            # Importance score
             importance_score = ImportanceScoringEngine.score_scene(
                 scene,
                 motion_score,
@@ -79,27 +96,29 @@ class MemoryMapPipeline:
                 semantic_label
             )
 
-            scored_scenes.append((scene, importance_score))
-            scene_data[id(scene)] = {
+            scored_scenes.append((idx, importance_score))
+            scene_lookup[idx] = {
+                "scene": scene,
                 "semantic": semantic_label,
                 "motion": motion_score,
                 "emotion": emotion_score
             }
 
-        # 6️⃣ Memory Selection (Scene-based ✅)
+        # 6️⃣ Memory selection (index-based)
         print("\n🧠 Selecting memories...")
         selected = MemorySelection.select_memories(
             scored_scenes,
             keep_ratio=keep_ratio
         )
 
-        # 7️⃣ Explanation & Timeline
+        # 7️⃣ Explanation & timeline
         print("\n📝 Generating explanations...")
         timeline = MemoryTimeline(self.output_dir)
         memories_with_explanations = []
 
-        for scene, importance_score in selected:
-            data = scene_data[id(scene)]
+        for idx, importance_score in selected:
+            data = scene_lookup[idx]
+            scene = data["scene"]
 
             explanation = ExplanationGenerator.generate_explanation(
                 scene,
