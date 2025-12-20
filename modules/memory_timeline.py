@@ -1,5 +1,3 @@
-"""Memory timeline generation and output"""
-
 import cv2
 import json
 from pathlib import Path
@@ -9,83 +7,79 @@ from data_structures import Scene, Memory, Frame
 
 class MemoryTimeline:
     """Generates and saves memory timeline"""
-    
+
     def __init__(self, output_dir: str = "memory_output"):
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
-        self.memories: List[Memory] = []
-    
-    def add_memory(self, scene: Scene, importance_score: float, 
-                   explanation: str, image_filename: str):
-        """Add memory to timeline"""
-        memory = Memory(
-            scene_id=scene.scene_id,
-            timestamp=scene.start_time,
-            image_path=image_filename,
-            importance_score=importance_score,
-            explanation=explanation
-        )
-        self.memories.append(memory)
-    
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
     def save_timeline(self, memories: List[Tuple[Scene, float, str]]):
-        """Save timeline as JSON and text"""
-        # Save images
+        """
+        Save timeline images, JSON metadata and text report
+        memories: List of (Scene, importance_score, explanation)
+        """
+
+        saved_memories = []
+
+        # 1️⃣ Save images
         for idx, (scene, score, explanation) in enumerate(memories):
             img = None
 
-            # Extract raw image from representative_frame
-            if scene.representative_frame is not None:
-                if isinstance(scene.representative_frame, Frame):
-                    img = scene.representative_frame.image
-                else:
-                    img = scene.representative_frame  # fallback if already ndarray
+            rf = scene.representative_frame
+            if rf is not None:
+                if isinstance(rf, Frame):
+                    img = rf.image
+                elif hasattr(rf, "shape"):
+                    img = rf  # already ndarray
 
-            if img is not None:
-                img_path = self.output_dir / f"memory_{idx:02d}.jpg"
-                cv2.imwrite(str(img_path), img)
+            if img is None:
+                print(f"⚠️ Skipping memory {idx}: no representative frame")
+                continue
 
-        # Save JSON timeline
+            img_name = f"memory_{idx:02d}.jpg"
+            img_path = self.output_dir / img_name
+            cv2.imwrite(str(img_path), img)
+
+            saved_memories.append((scene, score, explanation, img_name))
+
+        # 2️⃣ Save JSON timeline
         timeline_data = {
-            "total_memories": len(memories),
+            "total_memories": len(saved_memories),
             "memories": [
                 {
                     "index": idx,
-                    "timestamp": f"{self._format_time(scene.start_time)}",
+                    "timestamp": self._format_time(scene.start_time),
                     "seconds": scene.start_time,
-                    "importance": f"{score:.2f}",
+                    "importance": round(score, 3),
                     "explanation": explanation,
-                    "image": f"memory_{idx:02d}.jpg"
+                    "image": img_name,
                 }
-                for idx, (scene, score, explanation) in enumerate(memories)
-            ]
+                for idx, (scene, score, explanation, img_name)
+                in enumerate(saved_memories)
+            ],
         }
-        
-        json_path = self.output_dir / "timeline.json"
-        with open(json_path, 'w') as f:
+
+        with open(self.output_dir / "timeline.json", "w") as f:
             json.dump(timeline_data, f, indent=2)
-        
-        # Save text report
-        text_path = self.output_dir / "memory_report.txt"
-        with open(text_path, 'w') as f:
+
+        # 3️⃣ Save text report
+        with open(self.output_dir / "memory_report.txt", "w") as f:
             f.write("=" * 70 + "\n")
             f.write("MEMORYMAP - VIDEO MEMORY EXTRACTION REPORT\n")
             f.write("=" * 70 + "\n\n")
-            
-            for idx, (scene, score, explanation) in enumerate(memories):
+
+            for idx, (scene, score, explanation, img_name) in enumerate(saved_memories):
                 f.write(f"MEMORY #{idx + 1}\n")
                 f.write(f"  Timestamp: {self._format_time(scene.start_time)}\n")
-                f.write(f"  Importance Score: {score:.2%}\n")
+                f.write(f"  Importance Score: {score:.3f}\n")
                 f.write(f"  Explanation: {explanation}\n")
-                f.write(f"  Image: memory_{idx:02d}.jpg\n")
-                f.write("\n")
-        
+                f.write(f"  Image: {img_name}\n\n")
+
         print(f"✓ Saved timeline to {self.output_dir}/")
         print(f"  - timeline.json")
         print(f"  - memory_report.txt")
-        print(f"  - memory_*.jpg images")
-    
+        print(f"  - {len(saved_memories)} images")
+
     @staticmethod
     def _format_time(seconds: float) -> str:
-        """Format seconds to MM:SS"""
         m, s = divmod(int(seconds), 60)
         return f"{m:02d}:{s:02d}"

@@ -21,12 +21,6 @@ class MotionEventSegmentation:
         min_event_frames: int = 3,
         max_gap_frames: int = 1
     ):
-        """
-        Args:
-            diff_threshold: motion sensitivity
-            min_event_frames: minimum frames to form an event
-            max_gap_frames: allowed silent frames inside an event
-        """
         self.diff_threshold = diff_threshold
         self.min_event_frames = min_event_frames
         self.max_gap_frames = max_gap_frames
@@ -39,6 +33,7 @@ class MotionEventSegmentation:
 
         current_frames: List[Frame] = []
         silent_count = 0
+        scene_id = 0
 
         prev_gray = cv2.cvtColor(frames[0].image, cv2.COLOR_BGR2GRAY)
 
@@ -49,6 +44,10 @@ class MotionEventSegmentation:
             motion_energy = float(np.mean(diff))
 
             if motion_energy > self.diff_threshold:
+                # ✅ include motion start frame
+                if not current_frames:
+                    current_frames.append(frames[i - 1])
+
                 current_frames.append(frames[i])
                 silent_count = 0
             else:
@@ -57,29 +56,37 @@ class MotionEventSegmentation:
                     if silent_count <= self.max_gap_frames:
                         current_frames.append(frames[i])
                     else:
-                        # finalize event
-                        if len(current_frames) >= self.min_event_frames:
-                            events.append(
-                                Scene(
-                                    frames=current_frames.copy(),
-                                    start_time=current_frames[0].timestamp,
-                                    end_time=current_frames[-1].timestamp
-                                )
-                            )
-                        current_frames.clear()
+                        self._finalize_event(
+                            events, current_frames, scene_id
+                        )
+                        if current_frames:
+                            scene_id += 1
+                        current_frames = []
                         silent_count = 0
 
             prev_gray = curr_gray
 
-        # handle last event
-        if len(current_frames) >= self.min_event_frames:
-            events.append(
-                Scene(
-                    frames=current_frames,
-                    start_time=current_frames[0].timestamp,
-                    end_time=current_frames[-1].timestamp
-                )
-            )
+        # finalize last event
+        self._finalize_event(events, current_frames, scene_id)
 
         print(f"✓ Detected {len(events)} motion events")
         return events
+
+    def _finalize_event(
+        self,
+        events: List[Scene],
+        frames: List[Frame],
+        scene_id: int
+    ):
+        if len(frames) < self.min_event_frames:
+            return
+
+        events.append(
+            Scene(
+                scene_id=scene_id,
+                start_time=frames[0].timestamp,
+                end_time=frames[-1].timestamp,
+                frames=frames.copy(),
+                representative_frame=None
+            )
+        )

@@ -26,7 +26,7 @@ class MemoryMapPipeline:
         self.video_path = video_path
         self.output_dir = output_dir
 
-        # ✅ Create heavy analyzers ONCE
+        # Heavy analyzers (load once)
         self.object_analyzer = ObjectContextAnalyzer()
 
     def run(
@@ -35,42 +35,56 @@ class MemoryMapPipeline:
         keep_ratio: float = 0.3,
         scene_threshold: float = 25.0,
     ):
-        """
-        Run complete memory extraction pipeline
-
-        Args:
-            sample_interval: seconds between frames
-            keep_ratio: fraction of scenes to keep as memories
-            scene_threshold: sensitivity for scene detection
-        """
-
         print("\n" + "=" * 70)
         print("🧠 MEMORYMAP - VIDEO MEMORY EXTRACTION")
         print("=" * 70 + "\n")
 
-        # 1️⃣ Video Ingestion
+        # 1️⃣ Validate video path
         print("1️⃣ Loading video...")
-        video = VideoIngestion(self.video_path)
-        metadata = video.get_metadata()
 
-        print(f"  Duration: {metadata['duration_seconds']:.1f}s")
+        if not os.path.exists(self.video_path):
+            raise FileNotFoundError(f"❌ Video file not found: {self.video_path}")
+
+        try:
+            video = VideoIngestion(self.video_path)
+        except Exception as e:
+            print("❌ Failed to open video.")
+            print("Reason:", e)
+            print("\n👉 Possible causes:")
+            print(" - Corrupted MP4 (moov atom missing)")
+            print(" - Incomplete download")
+            print(" - Unsupported codec")
+            print(" - Zero-byte file")
+            return []
+
+        metadata = video.get_metadata()
+        print(f"  Duration: {metadata['duration_seconds']:.2f}s")
         print(f"  Resolution: {metadata['resolution']}")
-        print(f"  FPS: {metadata['fps']}")
+        print(f"  FPS: {metadata['fps']:.2f}")
 
         # 2️⃣ Frame Sampling
         print("\n2️⃣ Sampling frames...")
         sampler = FrameSampling(video, sample_interval=sample_interval)
         frames = sampler.sample()
 
-        # 3️⃣ Scene Segmentation
+        if not frames:
+            print("⚠️ No frames extracted. Aborting pipeline.")
+            video.close()
+            return []
+
+        # 3️⃣ Motion Event Segmentation
         print("\n3️⃣ Detecting motion events...")
         event_detector = MotionEventSegmentation(
-            diff_threshold=15.0,
+            diff_threshold=scene_threshold,
             min_event_frames=3,
-            max_gap_frames=1
+            max_gap_frames=1,
         )
         scenes = event_detector.detect_events(frames)
 
+        if not scenes:
+            print("⚠️ No motion scenes detected.")
+            video.close()
+            return []
 
         # 4️⃣ Representative Frame Selection
         print("\n4️⃣ Selecting representative frames...")
@@ -81,7 +95,6 @@ class MemoryMapPipeline:
         scored_scenes = []
 
         for scene in scenes:
-            # Object & Context Analysis (FIXED)
             try:
                 context_data = self.object_analyzer.analyze_scene(scene)
             except Exception as e:
@@ -92,18 +105,13 @@ class MemoryMapPipeline:
                     "context_change": 0.0,
                 }
 
-            # Motion Analysis
             motion_score = MotionAnalysis.calculate_motion_score(scene)
-
-            # Emotion / Visual Intensity Analysis
             emotion_score = EmotionAnalysis.estimate_emotion_score(scene)
 
-            # Semantic Understanding
             semantic_label = SemanticAnalyzer.classify_scene(
                 scene, motion_score, context_data["context_change"]
             )
 
-            # Importance Scoring
             importance_score = ImportanceScoringEngine.score_scene(
                 scene,
                 motion_score,
@@ -130,7 +138,12 @@ class MemoryMapPipeline:
             keep_ratio=keep_ratio,
         )
 
-        # 7️⃣ Explanation Generation & Timeline Output
+        if not selected:
+            print("⚠️ No memories selected.")
+            video.close()
+            return []
+
+        # 7️⃣ Explanation + Timeline
         print("\n📝 Generating explanations...")
         timeline = MemoryTimeline(self.output_dir)
         memories_with_explanations = []
@@ -156,7 +169,6 @@ class MemoryMapPipeline:
             )
 
         timeline.save_timeline(memories_with_explanations)
-
         video.close()
 
         print("\n" + "=" * 70)
@@ -165,3 +177,4 @@ class MemoryMapPipeline:
         print("=" * 70 + "\n")
 
         return memories_with_explanations
+# -------------------------------------------------
