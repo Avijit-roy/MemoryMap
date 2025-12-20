@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from modules.video_ingestion import VideoIngestion
 from modules.frame_sampling import FrameSampling
-from modules.scene_segmentation import SceneSegmentation
+from modules.motion_event_segmentation import MotionEventSegmentation
 from modules.representative_frames import RepresentativeFrameSelection
 from modules.object_context import ObjectContextAnalyzer
 from modules.motion_analysis import MotionAnalysis
@@ -63,9 +63,14 @@ class MemoryMapPipeline:
         frames = sampler.sample()
 
         # 3️⃣ Scene Segmentation
-        print("\n3️⃣ Detecting scenes...")
-        detector = SceneSegmentation(frames, threshold=scene_threshold)
-        scenes = detector.detect_scenes()
+        print("\n3️⃣ Detecting motion events...")
+        event_detector = MotionEventSegmentation(
+            diff_threshold=15.0,
+            min_event_frames=3,
+            max_gap_frames=1
+        )
+        scenes = event_detector.detect_events(frames)
+
 
         # 4️⃣ Representative Frame Selection
         print("\n4️⃣ Selecting representative frames...")
