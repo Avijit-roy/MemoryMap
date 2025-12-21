@@ -18,21 +18,21 @@ class SemanticAnalyzer:
         CCTV-aware semantic classification
         """
 
-        # No activity at all
+        # 1️⃣ No activity at all
         if motion_score < 0.05 and context_change < 0.1:
             return "idle_scene"
 
-        # New object or environment change
-        if context_change > 0.6:
-            return "new_object_appearance"
-
-        # Strong motion (running, crowd, vehicle)
+        # 2️⃣ Strong motion (running, crowd, vehicle movement)
         if motion_score > 0.5:
             return "significant_activity"
 
-        # Small motion (walking, subtle movement)
+        # 3️⃣ New object or major context change (person/car enters view)
+        if context_change > 0.6:
+            return "new_object_appearance"
+
+        # 4️⃣ Small / subtle motion (walking, background movement)
         if motion_score > 0.15:
             return "minor_activity"
 
-        # Fallback
+        # 5️⃣ Fallback
         return "background_activity"

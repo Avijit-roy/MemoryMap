@@ -1,7 +1,7 @@
 """Data structures for MemoryMap pipeline"""
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional, Union
 import numpy as np
 
 
@@ -16,11 +16,12 @@ class Frame:
 @dataclass
 class Scene:
     """Represents a detected scene/event"""
+
+    scene_id: int
     start_time: float
     end_time: float
     frames: List[Frame]
-    representative_frame: np.ndarray = None
-    scene_id: int = 0
+    representative_frame: Optional[Union[Frame, np.ndarray]] = None
 
 
 @dataclass

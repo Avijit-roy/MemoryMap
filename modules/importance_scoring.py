@@ -18,20 +18,18 @@ class ImportanceScoringEngine:
     ) -> float:
         """
         CCTV-aware importance scoring
-
-        Signals:
-        - Motion (primary)
-        - Context / object change
-        - Semantic meaning
-        - Visual saliency (minor)
         """
+
+        # 🚫 HARD FILTER: ignore idle scenes
+        if semantic_label == "idle_scene" and motion_score < 0.08:
+            return 0.0
 
         # -------------------------
         # Base signal weights
         # -------------------------
-        motion_weight = motion_score * 0.45
-        context_weight = context_data.get("context_change", 0.0) * 0.35
-        visual_weight = emotion_score * 0.10  # low importance in CCTV
+        motion_weight = motion_score * 0.55   # motion dominates CCTV
+        context_weight = context_data.get("context_change", 0.0) * 0.25
+        visual_weight = emotion_score * 0.05  # very minor
 
         # -------------------------
         # Semantic boost (CCTV)
@@ -44,8 +42,6 @@ class ImportanceScoringEngine:
             semantic_boost = 0.25
         elif semantic_label == "minor_activity":
             semantic_boost = 0.10
-        elif semantic_label == "idle_scene":
-            semantic_boost = 0.0
         elif semantic_label == "background_activity":
             semantic_boost = 0.05
 
@@ -59,4 +55,5 @@ class ImportanceScoringEngine:
             + semantic_boost
         )
 
-        return min(total_score, 1.0)
+        # Clamp
+        return max(0.0, min(total_score, 1.0))

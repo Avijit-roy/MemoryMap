@@ -16,39 +16,42 @@ class ExplanationGenerator:
     ) -> str:
         """
         Generate a natural language explanation for why a scene/memory is important.
-
-        Args:
-            scene: Scene object with start and end time
-            importance_score: float indicating importance
-            motion_score: float indicating motion intensity (0-1)
-            emotion_score: float indicating emotional intensity (0-1)
-            semantic_label: string semantic label of the scene
-
-        Returns:
-            Explanation string
         """
 
         factors = []
 
+        # Motion-based explanation
         if motion_score > 0.6:
-            factors.append("significant motion/activity")
+            factors.append("significant motion or activity detected")
+        elif motion_score > 0.2:
+            factors.append("noticeable movement")
 
+        # Visual saliency (low priority in CCTV)
         if emotion_score > 0.6:
-            factors.append("high emotional intensity")
+            factors.append("high visual intensity")
 
-        if semantic_label == "important_explanation":
-            factors.append("important concept introduction")
-        elif semantic_label == "decision_moment":
-            factors.append("key decision point")
-        elif semantic_label == "transition":
-            factors.append("scene change or transition")
-        else:
-            factors.append("notable content")
+        # Semantic explanation (CCTV-aligned)
+        if semantic_label == "new_object_appearance":
+            factors.append("a new object appeared in the scene")
+        elif semantic_label == "significant_activity":
+            factors.append("sustained or strong activity occurred")
+        elif semantic_label == "minor_activity":
+            factors.append("minor activity was detected")
+        elif semantic_label == "idle_scene":
+            factors.append("the scene remained mostly idle")
+        elif semantic_label == "background_activity":
+            factors.append("background-level activity was present")
+
+        # Safety fallback
+        if not factors:
+            factors.append("notable visual changes")
 
         # Join factors naturally
         factors_text = " and ".join(factors)
 
         duration = scene.end_time - scene.start_time
-        explanation = f"This {duration:.1f}s moment is important because of: {factors_text}."
+        explanation = (
+            f"This {duration:.1f}s moment is important because {factors_text}."
+        )
 
         return explanation

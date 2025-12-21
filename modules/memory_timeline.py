@@ -2,7 +2,7 @@ import cv2
 import json
 from pathlib import Path
 from typing import List, Tuple
-from data_structures import Scene, Memory, Frame
+from data_structures import Scene, Frame
 
 
 class MemoryTimeline:
@@ -35,7 +35,7 @@ class MemoryTimeline:
                 print(f"⚠️ Skipping memory {idx}: no representative frame")
                 continue
 
-            img_name = f"memory_{idx:02d}.jpg"
+            img_name = f"memory_{len(saved_memories):02d}.jpg"
             img_path = self.output_dir / img_name
             cv2.imwrite(str(img_path), img)
 
@@ -75,8 +75,8 @@ class MemoryTimeline:
                 f.write(f"  Image: {img_name}\n\n")
 
         print(f"✓ Saved timeline to {self.output_dir}/")
-        print(f"  - timeline.json")
-        print(f"  - memory_report.txt")
+        print("  - timeline.json")
+        print("  - memory_report.txt")
         print(f"  - {len(saved_memories)} images")
 
     @staticmethod
