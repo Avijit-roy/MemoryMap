@@ -16,9 +16,9 @@ def main():
     # Initialize and run pipeline
     pipeline = MemoryMapPipeline(video_path, output_dir)
     pipeline.run(
-        sample_interval=4.0,  # Sample every 4 seconds
+        sample_interval=1.0,  # Sample every 4 seconds
         keep_ratio=0.2,       # Keep top 20% of scenes as memories
-        scene_threshold=25.0  # Scene change detection sensitivity
+        scene_threshold=12.0  # Scene change detection sensitivity
     )
 
 

@@ -5,6 +5,36 @@ from typing import List, Tuple
 from data_structures import Scene, Frame
 
 
+def select_representative_frame(scene: Scene):
+    """
+    Select frame with highest motion inside the scene
+    """
+    if not scene.frames or len(scene.frames) < 2:
+        return scene.frames[0].image if scene.frames else None
+
+    best_frame = scene.frames[0].image
+    best_motion = 0.0
+
+    for i in range(len(scene.frames) - 1):
+        f1 = scene.frames[i].image
+        f2 = scene.frames[i + 1].image
+
+        if f1 is None or f2 is None:
+            continue
+
+        gray1 = cv2.cvtColor(f1, cv2.COLOR_BGR2GRAY)
+        gray2 = cv2.cvtColor(f2, cv2.COLOR_BGR2GRAY)
+
+        diff = cv2.absdiff(gray1, gray2)
+        motion = diff.mean()
+
+        if motion > best_motion:
+            best_motion = motion
+            best_frame = f2
+
+    return best_frame
+
+
 class MemoryTimeline:
     """Generates and saves memory timeline"""
 
@@ -22,17 +52,11 @@ class MemoryTimeline:
 
         # 1️⃣ Save images
         for idx, (scene, score, explanation) in enumerate(memories):
-            img = None
-
-            rf = scene.representative_frame
-            if rf is not None:
-                if isinstance(rf, Frame):
-                    img = rf.image
-                elif hasattr(rf, "shape"):
-                    img = rf  # already ndarray
+            # 🔥 ALWAYS recompute representative frame (fix randomness)
+            img = select_representative_frame(scene)
 
             if img is None:
-                print(f"⚠️ Skipping memory {idx}: no representative frame")
+                print(f"⚠️ Skipping memory {idx}: no valid frame")
                 continue
 
             img_name = f"memory_{len(saved_memories):02d}.jpg"
@@ -48,7 +72,7 @@ class MemoryTimeline:
                 {
                     "index": idx,
                     "timestamp": self._format_time(scene.start_time),
-                    "seconds": scene.start_time,
+                    "seconds": round(scene.start_time, 2),
                     "importance": round(score, 3),
                     "explanation": explanation,
                     "image": img_name,
