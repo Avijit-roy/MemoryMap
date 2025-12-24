@@ -33,7 +33,7 @@ class MemoryMapPipeline:
         self,
         sample_interval: float = 2.0,
         keep_ratio: float = 0.3,
-        scene_threshold: float = 25.0,
+        adaptive_k: float = 2.5,
     ):
         print("\n" + "=" * 70)
         print("🧠 MEMORYMAP - VIDEO MEMORY EXTRACTION")
@@ -75,9 +75,9 @@ class MemoryMapPipeline:
         # 3️⃣ Motion Event Segmentation
         print("\n3️⃣ Detecting motion events...")
         event_detector = MotionEventSegmentation(
-            diff_threshold=scene_threshold,
             min_event_frames=3,
             max_gap_frames=1,
+            k=adaptive_k,
         )
         scenes = event_detector.detect_events(frames)
 

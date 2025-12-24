@@ -5,6 +5,7 @@ Motion-based event segmentation for static surveillance videos
 import cv2
 import numpy as np
 from typing import List
+from collections import deque
 from data_structures import Scene, Frame
 
 
@@ -12,18 +13,22 @@ class MotionEventSegmentation:
     """
     Detects motion bursts (events) from sampled frames
 
-    An event = continuous period of motion
+    An event = motion spike relative to recent history
     """
 
     def __init__(
         self,
-        diff_threshold: float = 15.0,
         min_event_frames: int = 3,
-        max_gap_frames: int = 1
+        max_gap_frames: int = 1,
+        history_size: int = 30,
+        k: float = 2.5
     ):
-        self.diff_threshold = diff_threshold
         self.min_event_frames = min_event_frames
         self.max_gap_frames = max_gap_frames
+
+        # Adaptive motion parameters
+        self.motion_history = deque(maxlen=history_size)
+        self.k = k
 
     def detect_events(self, frames: List[Frame]) -> List[Scene]:
         if len(frames) < 2:
@@ -43,8 +48,21 @@ class MotionEventSegmentation:
             diff = cv2.absdiff(prev_gray, curr_gray)
             motion_energy = float(np.mean(diff))
 
-            if motion_energy > self.diff_threshold:
-                # ✅ include motion start frame
+            # --- Adaptive baseline update ---
+            self.motion_history.append(motion_energy)
+
+            # Not enough context yet → learn first
+            if len(self.motion_history) < 10:
+                prev_gray = curr_gray
+                continue
+
+            mean = np.mean(self.motion_history)
+            std = np.std(self.motion_history)
+            adaptive_threshold = mean + self.k * std
+
+            is_motion = motion_energy > adaptive_threshold
+
+            if is_motion:
                 if not current_frames:
                     current_frames.append(frames[i - 1])
 
