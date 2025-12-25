@@ -10,8 +10,6 @@ from modules.frame_sampling import FrameSampling
 from modules.motion_event_segmentation import MotionEventSegmentation
 from modules.representative_frames import RepresentativeFrameSelection
 from modules.object_context import ObjectContextAnalyzer
-from modules.motion_analysis import MotionAnalysis
-from modules.emotion_analysis import EmotionAnalysis
 from modules.semantic_analyzer import SemanticAnalyzer
 from modules.importance_scoring import ImportanceScoringEngine
 from modules.memory_selection import MemorySelection
@@ -31,66 +29,54 @@ class MemoryMapPipeline:
 
     def run(
         self,
-        sample_interval: float = 2.0,
-        keep_ratio: float = 0.3,
+        sample_interval: float = 1.0,
+        keep_ratio: float = 0.2,
         adaptive_k: float = 2.5,
     ):
         print("\n" + "=" * 70)
         print("🧠 MEMORYMAP - VIDEO MEMORY EXTRACTION")
         print("=" * 70 + "\n")
 
-        # 1️⃣ Validate video path
+        # 1️⃣ Load video
         print("1️⃣ Loading video...")
-
         if not os.path.exists(self.video_path):
             raise FileNotFoundError(f"❌ Video file not found: {self.video_path}")
 
-        try:
-            video = VideoIngestion(self.video_path)
-        except Exception as e:
-            print("❌ Failed to open video.")
-            print("Reason:", e)
-            print("\n👉 Possible causes:")
-            print(" - Corrupted MP4 (moov atom missing)")
-            print(" - Incomplete download")
-            print(" - Unsupported codec")
-            print(" - Zero-byte file")
-            return []
-
+        video = VideoIngestion(self.video_path)
         metadata = video.get_metadata()
+
         print(f"  Duration: {metadata['duration_seconds']:.2f}s")
         print(f"  Resolution: {metadata['resolution']}")
         print(f"  FPS: {metadata['fps']:.2f}")
 
-        # 2️⃣ Frame Sampling
+        # 2️⃣ Frame sampling
         print("\n2️⃣ Sampling frames...")
-        sampler = FrameSampling(video, sample_interval=sample_interval)
-        frames = sampler.sample()
+        frames = FrameSampling(video, sample_interval).sample()
 
         if not frames:
-            print("⚠️ No frames extracted. Aborting pipeline.")
+            print("⚠️ No frames extracted.")
             video.close()
             return []
 
-        # 3️⃣ Motion Event Segmentation
+        # 3️⃣ Motion event detection
         print("\n3️⃣ Detecting motion events...")
-        event_detector = MotionEventSegmentation(
+        detector = MotionEventSegmentation(
             min_event_frames=3,
             max_gap_frames=1,
             k=adaptive_k,
         )
-        scenes = event_detector.detect_events(frames)
+        scenes = detector.detect_events(frames)
 
         if not scenes:
             print("⚠️ No motion scenes detected.")
             video.close()
             return []
 
-        # 4️⃣ Representative Frame Selection
+        # 4️⃣ Representative frame selection
         print("\n4️⃣ Selecting representative frames...")
         scenes = RepresentativeFrameSelection.process_all_scenes(scenes)
 
-        # 5️⃣ Scene Analysis
+        # 5️⃣ Scene analysis + importance scoring
         print("\n📊 Analyzing scenes...")
         scored_scenes = []
 
@@ -105,17 +91,14 @@ class MemoryMapPipeline:
                     "context_change": 0.0,
                 }
 
-            motion_score = MotionAnalysis.calculate_motion_score(scene)
-            emotion_score = EmotionAnalysis.estimate_emotion_score(scene)
-
             semantic_label = SemanticAnalyzer.classify_scene(
-                scene, motion_score, context_data["context_change"]
+                scene,
+                scene.motion_mean,
+                context_data.get("context_change", 0.0),
             )
 
-            importance_score = ImportanceScoringEngine.score_scene(
+            importance = ImportanceScoringEngine.score_scene(
                 scene,
-                motion_score,
-                emotion_score,
                 context_data,
                 semantic_label,
             )
@@ -123,18 +106,15 @@ class MemoryMapPipeline:
             scored_scenes.append(
                 (
                     scene,
-                    importance_score,
+                    importance,      # dict: {score, level}
                     semantic_label,
-                    motion_score,
-                    emotion_score,
-                    context_data,
                 )
             )
 
-        # 6️⃣ Memory Selection
+        # 6️⃣ Memory selection (score-only)
         print("\n🧠 Selecting memories...")
         selected = MemorySelection.select_memories(
-            [(scene, score) for scene, score, *_ in scored_scenes],
+            [(scene, imp["score"]) for scene, imp, _ in scored_scenes],
             keep_ratio=keep_ratio,
         )
 
@@ -143,38 +123,29 @@ class MemoryMapPipeline:
             video.close()
             return []
 
-        # 7️⃣ Explanation + Timeline
+        # 7️⃣ Explanation + timeline
         print("\n📝 Generating explanations...")
         timeline = MemoryTimeline(self.output_dir)
-        memories_with_explanations = []
+        memories = []
 
-        for selected_scene, importance_score in selected:
-            for s, _, label, motion, emotion, _ in scored_scenes:
-                if s == selected_scene:
-                    semantic_label = label
-                    motion_score = motion
-                    emotion_score = emotion
+        for selected_scene, score in selected:
+            for scene, imp, label in scored_scenes:
+                if scene == selected_scene:
+                    explanation = ExplanationGenerator.generate_explanation(
+                        scene,
+                        imp["score"],
+                        imp["level"],
+                        label,
+                    )
+                    memories.append((scene, imp["score"], explanation))
                     break
 
-            explanation = ExplanationGenerator.generate_explanation(
-                selected_scene,
-                importance_score,
-                motion_score,
-                emotion_score,
-                semantic_label,
-            )
-
-            memories_with_explanations.append(
-                (selected_scene, importance_score, explanation)
-            )
-
-        timeline.save_timeline(memories_with_explanations)
+        timeline.save_timeline(memories)
         video.close()
 
         print("\n" + "=" * 70)
-        print(f"✓ COMPLETE: Extracted {len(memories_with_explanations)} memories")
+        print(f"✓ COMPLETE: Extracted {len(memories)} memories")
         print(f"📁 Output: {self.output_dir}/")
         print("=" * 70 + "\n")
 
-        return memories_with_explanations
-# -------------------------------------------------
+        return memories

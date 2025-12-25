@@ -37,6 +37,8 @@ class MotionEventSegmentation:
         events: List[Scene] = []
 
         current_frames: List[Frame] = []
+        current_motion: List[float] = []
+
         silent_count = 0
         scene_id = 0
 
@@ -51,7 +53,7 @@ class MotionEventSegmentation:
             # --- Adaptive baseline update ---
             self.motion_history.append(motion_energy)
 
-            # Not enough context yet → learn first
+            # Learn baseline first
             if len(self.motion_history) < 10:
                 prev_gray = curr_gray
                 continue
@@ -64,28 +66,35 @@ class MotionEventSegmentation:
 
             if is_motion:
                 if not current_frames:
+                    # include frame before spike
                     current_frames.append(frames[i - 1])
 
                 current_frames.append(frames[i])
+                current_motion.append(motion_energy)
                 silent_count = 0
             else:
                 if current_frames:
                     silent_count += 1
                     if silent_count <= self.max_gap_frames:
                         current_frames.append(frames[i])
+                        current_motion.append(motion_energy)
                     else:
                         self._finalize_event(
-                            events, current_frames, scene_id
+                            events,
+                            current_frames,
+                            current_motion,
+                            scene_id
                         )
                         if current_frames:
                             scene_id += 1
                         current_frames = []
+                        current_motion = []
                         silent_count = 0
 
             prev_gray = curr_gray
 
         # finalize last event
-        self._finalize_event(events, current_frames, scene_id)
+        self._finalize_event(events, current_frames, current_motion, scene_id)
 
         print(f"✓ Detected {len(events)} motion events")
         return events
@@ -94,17 +103,32 @@ class MotionEventSegmentation:
         self,
         events: List[Scene],
         frames: List[Frame],
+        motion_values: List[float],
         scene_id: int
     ):
         if len(frames) < self.min_event_frames:
             return
 
-        events.append(
-            Scene(
-                scene_id=scene_id,
-                start_time=frames[0].timestamp,
-                end_time=frames[-1].timestamp,
-                frames=frames.copy(),
-                representative_frame=None
-            )
+        duration = frames[-1].timestamp - frames[0].timestamp
+
+        motion_mean = float(np.mean(motion_values))
+        motion_peak = float(np.max(motion_values))
+        motion_std = float(np.std(motion_values))
+        suddenness = motion_peak - motion_mean
+
+        scene = Scene(
+            scene_id=scene_id,
+            start_time=frames[0].timestamp,
+            end_time=frames[-1].timestamp,
+            frames=frames.copy(),
+            representative_frame=None
         )
+
+        # Attach motion intelligence (non-breaking extension)
+        scene.motion_mean = motion_mean
+        scene.motion_peak = motion_peak
+        scene.motion_std = motion_std
+        scene.suddenness = suddenness
+        scene.duration = duration
+
+        events.append(scene)

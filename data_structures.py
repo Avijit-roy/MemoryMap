@@ -1,34 +1,24 @@
-"""Data structures for MemoryMap pipeline"""
-
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional, Union
 import numpy as np
 
-
-@dataclass
-class Frame:
-    """Represents a single sampled frame"""
-    image: np.ndarray
-    timestamp: float
-    frame_index: int
-
-
 @dataclass
 class Scene:
-    """Represents a detected scene/event"""
-
     scene_id: int
     start_time: float
     end_time: float
     frames: List[Frame]
+
     representative_frame: Optional[Union[Frame, np.ndarray]] = None
 
+    duration: float = 0.0
+    motion_intensity: float = 0.0
+    suddenness: float = 0.0
 
-@dataclass
-class Memory:
-    """Represents a memory (selected scene with explanation)"""
-    scene_id: int
-    timestamp: float
-    image_path: str
-    importance_score: float
-    explanation: str
+    object_count_start: int = 0
+    object_count_end: int = 0
+    object_delta: int = 0
+
+    importance_score: float = 0.0
+    importance_label: Optional[str] = None

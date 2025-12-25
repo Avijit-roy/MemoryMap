@@ -13,65 +13,88 @@ class ImportanceScoringEngine:
     @staticmethod
     def score_scene(
         scene: Scene,
-        motion_score: float,
-        saliency_score: float,   # renamed (emotion ≠ CCTV)
         context_data: dict,
         semantic_label: str
-    ) -> float:
+    ) -> dict:
         """
-        CCTV-aware importance scoring
+        Event-level importance scoring
+
+        Returns:
+            {
+              "score": float (0–1),
+              "level": str
+            }
         """
 
         # -------------------------
-        # HARD FILTER (idle noise)
+        # Extract motion intelligence
         # -------------------------
-        if semantic_label == "idle_scene" and motion_score < 0.06:
-            return 0.0
+        motion_intensity = scene.motion_mean
+        motion_peak = scene.motion_peak
+        suddenness = scene.suddenness
+        duration = scene.duration
 
         # -------------------------
-        # Normalize context signals
+        # Context signals
         # -------------------------
-        context_change = min(context_data.get("context_change", 0.0), 1.0)
+        object_delta = min(context_data.get("context_change", 0.0), 1.0)
         object_count = context_data.get("object_count", 0)
 
         # -------------------------
-        # Base signal weights
+        # Normalize duration (short events still matter)
         # -------------------------
-        motion_weight = motion_score * 0.55        # primary
-        context_weight = context_change * 0.25     # object/scene change
-        visual_weight = saliency_score * 0.05      # very minor
+        duration_score = min(duration / 10.0, 1.0)  # 10s ≈ full weight
 
         # -------------------------
-        # Semantic boost (context-aware)
+        # Normalize motion (robust)
         # -------------------------
-        semantic_boost = 0.0
-
-        if semantic_label == "new_object_appearance":
-            semantic_boost = 0.30 if motion_score > 0.1 else 0.15
-        elif semantic_label == "significant_activity":
-            semantic_boost = 0.25
-        elif semantic_label == "minor_activity":
-            semantic_boost = 0.10
-        elif semantic_label == "background_activity":
-            semantic_boost = 0.05
+        motion_score = min(motion_intensity / 25.0, 1.0)
+        suddenness_score = min(suddenness / 20.0, 1.0)
 
         # -------------------------
-        # Combine signals
+        # Core importance formula
         # -------------------------
-        total_score = (
-            motion_weight
-            + context_weight
-            + visual_weight
-            + semantic_boost
+        importance = (
+            0.40 * motion_score +
+            0.30 * object_delta +
+            0.20 * duration_score +
+            0.10 * suddenness_score
         )
 
         # -------------------------
-        # Penalize empty-object scenes
+        # Semantic modulation
         # -------------------------
-        if object_count == 0:
-            total_score *= 0.6
+        if semantic_label == "idle_scene":
+            importance *= 0.2
+        elif semantic_label == "minor_activity":
+            importance *= 0.6
+        elif semantic_label == "significant_activity":
+            importance *= 1.1
+        elif semantic_label == "critical_activity":
+            importance *= 1.3
 
         # -------------------------
-        # Final clamp
+        # Penalize empty-object motion
         # -------------------------
-        return max(0.0, min(total_score, 1.0))
+        if object_count == 0:
+            importance *= 0.5
+
+        # -------------------------
+        # Clamp
+        # -------------------------
+        importance = max(0.0, min(importance, 1.0))
+
+        # -------------------------
+        # Human-readable level
+        # -------------------------
+        if importance < 0.25:
+            level = "Minor activity"
+        elif importance < 0.55:
+            level = "Significant disturbance"
+        else:
+            level = "Critical event"
+
+        return {
+            "score": importance,
+            "level": level
+        }

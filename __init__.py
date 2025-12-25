@@ -5,7 +5,7 @@ A comprehensive system for extracting and summarizing key moments from videos
 using multiple analysis signals (motion, emotion, semantic understanding).
 """
 
-__version__ = "2.0.0"
+__version__ = "2.3.0"
 __author__ = "Avijit Roy"
 __description__ = "Focused on surveillance video analysis and memory extraction."
 
