@@ -9,6 +9,7 @@ from modules.video_ingestion import VideoIngestion
 from modules.frame_sampling import FrameSampling
 from modules.motion_event_segmentation import MotionEventSegmentation
 from modules.representative_frames import RepresentativeFrameSelection
+from modules.emotion_analysis import EmotionAnalysis  # ✅ ADDED
 from modules.object_context import ObjectContextAnalyzer
 from modules.semantic_analyzer import SemanticAnalyzer
 from modules.importance_scoring import ImportanceScoringEngine
@@ -23,8 +24,6 @@ class MemoryMapPipeline:
     def __init__(self, video_path: str, output_dir: str = "memory_output"):
         self.video_path = video_path
         self.output_dir = output_dir
-
-        # Heavy analyzers (load once)
         self.object_analyzer = ObjectContextAnalyzer()
 
     def run(
@@ -37,7 +36,7 @@ class MemoryMapPipeline:
         print("🧠 MEMORYMAP - VIDEO MEMORY EXTRACTION")
         print("=" * 70 + "\n")
 
-        # 1️⃣ Load video
+        # 1. Load video
         print("1️⃣ Loading video...")
         if not os.path.exists(self.video_path):
             raise FileNotFoundError(f"❌ Video file not found: {self.video_path}")
@@ -49,7 +48,7 @@ class MemoryMapPipeline:
         print(f"  Resolution: {metadata['resolution']}")
         print(f"  FPS: {metadata['fps']:.2f}")
 
-        # 2️⃣ Frame sampling
+        # 2. Frame sampling
         print("\n2️⃣ Sampling frames...")
         frames = FrameSampling(video, sample_interval).sample()
 
@@ -58,7 +57,7 @@ class MemoryMapPipeline:
             video.close()
             return []
 
-        # 3️⃣ Motion event detection
+        # 3. Motion event detection
         print("\n3️⃣ Detecting motion events...")
         detector = MotionEventSegmentation(
             min_event_frames=3,
@@ -72,11 +71,16 @@ class MemoryMapPipeline:
             video.close()
             return []
 
-        # 4️⃣ Representative frame selection
+        # 4. Representative frame selection
         print("\n4️⃣ Selecting representative frames...")
         scenes = RepresentativeFrameSelection.process_all_scenes(scenes)
 
-        # 5️⃣ Scene analysis + importance scoring
+        # 5. Analyze emotion for all scenes
+        print("\n5️⃣ Analyzing emotion intensity...")  # ✅ ADDED
+        for scene in scenes:
+            scene.emotion_score = EmotionAnalysis.estimate_emotion_score(scene)
+
+        # 6. Scene analysis + importance scoring
         print("\n📊 Analyzing scenes...")
         scored_scenes = []
 
@@ -84,7 +88,7 @@ class MemoryMapPipeline:
             try:
                 context_data = self.object_analyzer.analyze_scene(scene)
             except Exception as e:
-                print("⚠️ Object analysis failed:", e)
+                print(f"⚠️ Object analysis failed: {e}")
                 context_data = {
                     "objects": [],
                     "object_count": 0,
@@ -104,14 +108,10 @@ class MemoryMapPipeline:
             )
 
             scored_scenes.append(
-                (
-                    scene,
-                    importance,      # dict: {score, level}
-                    semantic_label,
-                )
+                (scene, importance, semantic_label)
             )
 
-        # 6️⃣ Memory selection (score-only)
+        # 7. Memory selection (score-only)
         print("\n🧠 Selecting memories...")
         selected = MemorySelection.select_memories(
             [(scene, imp["score"]) for scene, imp, _ in scored_scenes],
@@ -123,7 +123,7 @@ class MemoryMapPipeline:
             video.close()
             return []
 
-        # 7️⃣ Explanation + timeline
+        # 8. Explanation + timeline
         print("\n📝 Generating explanations...")
         timeline = MemoryTimeline(self.output_dir)
         memories = []
@@ -131,10 +131,12 @@ class MemoryMapPipeline:
         for selected_scene, score in selected:
             for scene, imp, label in scored_scenes:
                 if scene == selected_scene:
+                    # ✅ FIXED: Now passes all required parameters
                     explanation = ExplanationGenerator.generate_explanation(
                         scene,
                         imp["score"],
-                        imp["level"],
+                        scene.motion_mean,      # ✅ ADDED
+                        scene.emotion_score,    # ✅ ADDED
                         label,
                     )
                     memories.append((scene, imp["score"], explanation))

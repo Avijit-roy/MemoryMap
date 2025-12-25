@@ -1,6 +1,4 @@
-"""
-Motion-based event segmentation for static surveillance videos
-"""
+"""Motion-based event segmentation for static surveillance videos"""
 
 import cv2
 import numpy as np
@@ -9,36 +7,36 @@ from collections import deque
 from data_structures import Scene, Frame
 
 
-class MotionEventSegmentation:
-    """
-    Detects motion bursts (events) from sampled frames
+# Configuration constants
+MIN_EVENT_FRAMES = 3
+MAX_GAP_FRAMES = 1
+HISTORY_SIZE = 30
+ADAPTIVE_K_DEFAULT = 2.5
 
-    An event = motion spike relative to recent history
-    """
+
+class MotionEventSegmentation:
+    """Detects motion bursts (events) from sampled frames"""
 
     def __init__(
         self,
-        min_event_frames: int = 3,
-        max_gap_frames: int = 1,
-        history_size: int = 30,
-        k: float = 2.5
+        min_event_frames: int = MIN_EVENT_FRAMES,
+        max_gap_frames: int = MAX_GAP_FRAMES,
+        history_size: int = HISTORY_SIZE,
+        k: float = ADAPTIVE_K_DEFAULT
     ):
         self.min_event_frames = min_event_frames
         self.max_gap_frames = max_gap_frames
-
-        # Adaptive motion parameters
         self.motion_history = deque(maxlen=history_size)
         self.k = k
 
     def detect_events(self, frames: List[Frame]) -> List[Scene]:
+        """Detect motion events from frame list"""
         if len(frames) < 2:
             return []
 
         events: List[Scene] = []
-
         current_frames: List[Frame] = []
         current_motion: List[float] = []
-
         silent_count = 0
         scene_id = 0
 
@@ -46,14 +44,12 @@ class MotionEventSegmentation:
 
         for i in range(1, len(frames)):
             curr_gray = cv2.cvtColor(frames[i].image, cv2.COLOR_BGR2GRAY)
-
             diff = cv2.absdiff(prev_gray, curr_gray)
             motion_energy = float(np.mean(diff))
 
-            # --- Adaptive baseline update ---
             self.motion_history.append(motion_energy)
 
-            # Learn baseline first
+            # Learn baseline before detecting
             if len(self.motion_history) < 10:
                 prev_gray = curr_gray
                 continue
@@ -61,14 +57,11 @@ class MotionEventSegmentation:
             mean = np.mean(self.motion_history)
             std = np.std(self.motion_history)
             adaptive_threshold = mean + self.k * std
-
             is_motion = motion_energy > adaptive_threshold
 
             if is_motion:
                 if not current_frames:
-                    # include frame before spike
                     current_frames.append(frames[i - 1])
-
                 current_frames.append(frames[i])
                 current_motion.append(motion_energy)
                 silent_count = 0
@@ -79,12 +72,7 @@ class MotionEventSegmentation:
                         current_frames.append(frames[i])
                         current_motion.append(motion_energy)
                     else:
-                        self._finalize_event(
-                            events,
-                            current_frames,
-                            current_motion,
-                            scene_id
-                        )
+                        self._finalize_event(events, current_frames, current_motion, scene_id)
                         if current_frames:
                             scene_id += 1
                         current_frames = []
@@ -93,9 +81,7 @@ class MotionEventSegmentation:
 
             prev_gray = curr_gray
 
-        # finalize last event
         self._finalize_event(events, current_frames, current_motion, scene_id)
-
         print(f"✓ Detected {len(events)} motion events")
         return events
 
@@ -105,12 +91,12 @@ class MotionEventSegmentation:
         frames: List[Frame],
         motion_values: List[float],
         scene_id: int
-    ):
+    ) -> None:
+        """Finalize an event and add to events list"""
         if len(frames) < self.min_event_frames:
             return
 
         duration = frames[-1].timestamp - frames[0].timestamp
-
         motion_mean = float(np.mean(motion_values))
         motion_peak = float(np.max(motion_values))
         motion_std = float(np.std(motion_values))
@@ -121,14 +107,11 @@ class MotionEventSegmentation:
             start_time=frames[0].timestamp,
             end_time=frames[-1].timestamp,
             frames=frames.copy(),
-            representative_frame=None
+            duration=duration,
+            motion_mean=motion_mean,
+            motion_peak=motion_peak,
+            motion_std=motion_std,
+            suddenness=suddenness
         )
-
-        # Attach motion intelligence (non-breaking extension)
-        scene.motion_mean = motion_mean
-        scene.motion_peak = motion_peak
-        scene.motion_std = motion_std
-        scene.suddenness = suddenness
-        scene.duration = duration
 
         events.append(scene)

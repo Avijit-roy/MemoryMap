@@ -16,8 +16,17 @@ class ExplanationGenerator:
     ) -> str:
         """
         Generate a natural language explanation for why a scene/memory is important.
+        
+        Args:
+            scene: Scene object
+            importance_score: Importance score 0-1
+            motion_score: Motion intensity 0-1
+            emotion_score: Emotion/intensity score 0-1
+            semantic_label: Semantic classification label
+            
+        Returns:
+            str: Natural language explanation
         """
-
         factors = []
 
         # Motion-based explanation
@@ -26,21 +35,22 @@ class ExplanationGenerator:
         elif motion_score > 0.2:
             factors.append("noticeable movement")
 
-        # Visual saliency (low priority in CCTV)
+        # Visual saliency/intensity
         if emotion_score > 0.6:
             factors.append("high visual intensity")
 
         # Semantic explanation (CCTV-aligned)
-        if semantic_label == "new_object_appearance":
-            factors.append("a new object appeared in the scene")
-        elif semantic_label == "significant_activity":
-            factors.append("sustained or strong activity occurred")
-        elif semantic_label == "minor_activity":
-            factors.append("minor activity was detected")
-        elif semantic_label == "idle_scene":
-            factors.append("the scene remained mostly idle")
-        elif semantic_label == "background_activity":
-            factors.append("background-level activity was present")
+        semantic_explanations = {
+            "new_object_appearance": "a new object appeared in the scene",
+            "significant_activity": "sustained or strong activity occurred",
+            "critical_activity": "critical activity was detected",
+            "minor_activity": "minor activity was detected",
+            "idle_scene": "the scene remained mostly idle",
+            "background_activity": "background-level activity was present",
+        }
+        
+        if semantic_label in semantic_explanations:
+            factors.append(semantic_explanations[semantic_label])
 
         # Safety fallback
         if not factors:
@@ -48,10 +58,7 @@ class ExplanationGenerator:
 
         # Join factors naturally
         factors_text = " and ".join(factors)
-
         duration = scene.end_time - scene.start_time
-        explanation = (
-            f"This {duration:.1f}s moment is important because {factors_text}."
-        )
-
+        
+        explanation = f"This {duration:.1f}s moment is important because {factors_text}."
         return explanation
