@@ -334,19 +334,12 @@ For issues, questions, or suggestions:
 
 ## 🔄 Version History
 
-### v1.0.0 (Current)
+### v2.0.0 (Current)
 - ✅ Core motion detection pipeline
 - ✅ Object recognition (YOLOv8)
 - ✅ Importance scoring
 - ✅ JSON & image output
 - ✅ Emotion analysis integration
-
-### Planned (v2.0)
-- 🚧 Multi-object tracking
-- 🚧 Web UI dashboard
-- 🚧 Audio analysis
-- 🚧 Parallel processing
-- 🚧 Face detection
 
 ---
 
