@@ -9,10 +9,11 @@ from modules.video_ingestion import VideoIngestion
 from modules.frame_sampling import FrameSampling
 from modules.motion_event_segmentation import MotionEventSegmentation
 from modules.representative_frames import RepresentativeFrameSelection
-from modules.emotion_analysis import EmotionAnalysis  # ✅ ADDED
+from modules.emotion_analysis import EmotionAnalysis
 from modules.object_context import ObjectContextAnalyzer
 from modules.semantic_analyzer import SemanticAnalyzer
 from modules.importance_scoring import ImportanceScoringEngine
+from modules.baseline_learner import CameraBaselinelearner  # ✅ NEW IMPORT
 from modules.memory_selection import MemorySelection
 from modules.explanation_generator import ExplanationGenerator
 from modules.memory_timeline import MemoryTimeline
@@ -76,11 +77,16 @@ class MemoryMapPipeline:
         scenes = RepresentativeFrameSelection.process_all_scenes(scenes)
 
         # 5. Analyze emotion for all scenes
-        print("\n5️⃣ Analyzing emotion intensity...")  # ✅ ADDED
+        print("\n5️⃣ Analyzing emotion intensity...")
         for scene in scenes:
             scene.emotion_score = EmotionAnalysis.estimate_emotion_score(scene)
 
-        # 6. Scene analysis + importance scoring
+        # ✅ NEW: 6. Learn camera baseline from first third of scenes
+        print("\n6️⃣ Learning camera baseline...")
+        baseline_learner = CameraBaselinelearner(percentile=50)
+        baseline = baseline_learner.learn_from_scenes(scenes[:len(scenes)//3])
+
+        # 7. Scene analysis + importance scoring
         print("\n📊 Analyzing scenes...")
         scored_scenes = []
 
@@ -101,17 +107,19 @@ class MemoryMapPipeline:
                 context_data.get("context_change", 0.0),
             )
 
+            # ✅ NEW: Pass baseline to importance scoring
             importance = ImportanceScoringEngine.score_scene(
                 scene,
                 context_data,
                 semantic_label,
+                baseline=baseline,  # ✅ NEW PARAMETER
             )
 
             scored_scenes.append(
                 (scene, importance, semantic_label)
             )
 
-        # 7. Memory selection (score-only)
+        # 8. Memory selection (score-only)
         print("\n🧠 Selecting memories...")
         selected = MemorySelection.select_memories(
             [(scene, imp["score"]) for scene, imp, _ in scored_scenes],
@@ -123,7 +131,7 @@ class MemoryMapPipeline:
             video.close()
             return []
 
-        # 8. Explanation + timeline
+        # 9. Explanation + timeline
         print("\n📝 Generating explanations...")
         timeline = MemoryTimeline(self.output_dir)
         memories = []
@@ -131,12 +139,12 @@ class MemoryMapPipeline:
         for selected_scene, score in selected:
             for scene, imp, label in scored_scenes:
                 if scene == selected_scene:
-                    # ✅ FIXED: Now passes all required parameters
+                    # ✅ Pass all required parameters
                     explanation = ExplanationGenerator.generate_explanation(
                         scene,
                         imp["score"],
-                        scene.motion_mean,      # ✅ ADDED
-                        scene.emotion_score,    # ✅ ADDED
+                        scene.motion_mean,
+                        scene.emotion_score,
                         label,
                     )
                     memories.append((scene, imp["score"], explanation))
